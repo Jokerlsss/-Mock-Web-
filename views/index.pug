@@ -45,5 +45,6 @@ html
 		script(src="/jspm_packages/system.js")
 		script(src="/config.js")
 		script.
-			var from = "!{from}";
+      //- 因做了JSON.stringify转义，故去除双引号
+			var from = !{fromForJs};
 			//- System.import('scripts/login');

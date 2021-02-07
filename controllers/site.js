@@ -21,6 +21,14 @@ var escapeHtml = function (str) {
   return str
 }
 
+var escapeForJs = function (str) {
+  if (!str) return '';
+  // \\: 一个斜杠是转义，一个是符号
+  str = str.replace(/\\/g, '\\\\');
+  str = str.replace(/"/g, '\\"');
+  return str;
+}
+
 exports.index = async function (ctx, next) {
   const connection = connectionModel.getConnection();
   const query = bluebird.promisify(connection.query.bind(connection));
@@ -34,10 +42,21 @@ exports.index = async function (ctx, next) {
     posts,
     comments,
     from: escapeHtml(ctx.query.from) || '',
+    // JSON.stringify可用于字符转义
+    fromForJs: JSON.stringify(ctx.query.from),
     avatarId: escapeHtml(ctx.query.avatarId) || ''
   });
   connection.end();
 };
+
+// 富文本过滤-黑名单过滤
+var xssFilter = function (html) {
+  if (!html) return '';
+  html = html.replace(/<\s*\/?script\s*>/g, '')
+  html = html.replace(/javascript:[^'"]*/g, '')
+  html = html.replace(/onerror\s*=\s*['"]?[^'"]*['"]/g, '')
+  return html
+}
 
 exports.post = async function (ctx, next) {
   try {
@@ -54,6 +73,12 @@ exports.post = async function (ctx, next) {
     const comments = await query(
       `select comment.*,user.username from comment left join user on comment.userId = user.id where postId = "${post.id}" order by comment.createdAt desc`
     );
+
+    // 将[评论]中的内容进行过滤
+    comments.forEach(function (comment) {
+      comment.content = xssFilter(comments.content);
+    });
+
     if (post) {
       ctx.render('post', { post, comments });
     } else {
